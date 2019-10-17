@@ -9,7 +9,7 @@ import "testing"
 
 func TestWaitMap1(t * testing.T) {
 	m := New()
-	_, oki := m.WaitNewTimeout("lalala", 1 * time.Second)
+	_, oki := m.WaitTimeout("lalala", 1 * time.Second)
 	if oki != 1 {
 		t.Errorf("WaitNewTimeout: 1 != %v", oki)
 	}
@@ -26,7 +26,7 @@ func TestWaitMap2(t * testing.T) {
 		}
 	}()
 	
-	value, oki := m.WaitNew("lalala")
+	value, oki := m.Wait("lalala")
 	if oki != 0 {
 		t.Errorf("WaitNew: 0 != %v, %v", oki, value)
 	}
@@ -43,7 +43,7 @@ func TestWaitMap3(t * testing.T) {
 		}
 	}()
 	
-	value, oki := m.WaitNewTimeout("lalala", 1 * time.Second)
+	value, oki := m.WaitCreateTimeout("lalala", 1 * time.Second)
 	if oki != 0 {
 		t.Errorf("WaitNewTimeout: 0 != %v, %v", oki, value)
 	}

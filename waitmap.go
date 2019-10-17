@@ -24,7 +24,7 @@ func New() (* WaitMap_t) {
 	return &WaitMap_t{dict: map[interface{}]*queue_t{}}
 }
 
-func (self *WaitMap_t) WaitNew(key interface{}) (value interface{}, oki int) {
+func (self *WaitMap_t) Wait(key interface{}) (value interface{}, oki int) {
 	self.mx.Lock()
 	defer self.mx.Unlock()
 	v, ok := self.dict[key];
@@ -41,7 +41,25 @@ func (self *WaitMap_t) WaitNew(key interface{}) (value interface{}, oki int) {
 	return
 }
 
-func (self *WaitMap_t) WaitNewTimeout(key interface{}, timeout time.Duration) (value interface{}, oki int) {
+func (self *WaitMap_t) WaitCreate(key interface{}) (value interface{}, oki int) {
+	self.mx.Lock()
+	defer self.mx.Unlock()
+	v, ok := self.dict[key];
+	if ok {
+		return nil, -1
+	}
+	v = &queue_t{q: queue.NewOpen(&self.mx, 0)}
+	self.dict[key] = v
+	v.readers++
+	value, oki = v.q.PopFront()
+	v.readers--
+	if v.readers == 0 {
+		delete(self.dict, key)
+	}
+	return
+}
+
+func (self *WaitMap_t) WaitTimeout(key interface{}, timeout time.Duration) (value interface{}, oki int) {
 	self.mx.Lock()
 	defer self.mx.Unlock()
 	v, ok := self.dict[key]
@@ -49,6 +67,33 @@ func (self *WaitMap_t) WaitNewTimeout(key interface{}, timeout time.Duration) (v
 		v = &queue_t{q: queue.NewOpen(&self.mx, 0)}
 		self.dict[key] = v
 	}
+	v.readers++
+	start := time.Now()
+	for {
+		value, oki = v.q.PopFrontNoWait()
+		if oki < 1 || time.Since(start) > timeout {
+			v.readers--
+			if v.readers == 0 {
+				delete(self.dict, key)
+			}
+			return
+		}
+		self.mx.Unlock()
+		time.Sleep(50 * time.Microsecond)
+		// runtime.Gosched()
+		self.mx.Lock()
+	}
+}
+
+func (self *WaitMap_t) WaitCreateTimeout(key interface{}, timeout time.Duration) (value interface{}, oki int) {
+	self.mx.Lock()
+	defer self.mx.Unlock()
+	v, ok := self.dict[key]
+	if ok {
+		return nil, -1
+	}
+	v = &queue_t{q: queue.NewOpen(&self.mx, 0)}
+	self.dict[key] = v
 	v.readers++
 	start := time.Now()
 	for {
