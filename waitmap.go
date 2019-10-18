@@ -6,7 +6,7 @@ package waitmap
 
 import "sync"
 import "time"
-// import "runtime"
+import "runtime"
 
 import "github.com/ondi/go-queue"
 
@@ -79,8 +79,8 @@ func (self *WaitMap_t) WaitTimeout(key interface{}, timeout time.Duration) (valu
 			return
 		}
 		self.mx.Unlock()
-		time.Sleep(50 * time.Microsecond)
-		// runtime.Gosched()
+		// time.Sleep(50 * time.Microsecond)
+		runtime.Gosched()
 		self.mx.Lock()
 	}
 }
@@ -106,8 +106,8 @@ func (self *WaitMap_t) WaitCreateTimeout(key interface{}, timeout time.Duration)
 			return
 		}
 		self.mx.Unlock()
-		time.Sleep(50 * time.Microsecond)
-		// runtime.Gosched()
+		// time.Sleep(50 * time.Microsecond)
+		runtime.Gosched()
 		self.mx.Lock()
 	}
 }
