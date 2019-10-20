@@ -13,7 +13,7 @@ import "github.com/ondi/go-queue"
 
 type WaitMap interface {
 	Create(key interface{}, queue_size int) (ok bool)
-	WaitExisting(key interface{}) (value interface{}, oki int)
+	WaitCreate(key interface{}) (value interface{}, oki int)
 	Wait(key interface{}) (value interface{}, oki int)
 	Signal(key interface{}, value interface{}) int
 	Remove(key interface{}) (ok bool)
@@ -41,9 +41,9 @@ func (self * WaitMap_t) Create(key interface{}, queue_size int) (ok bool) {
 	return
 }
 
-func (self * WaitMap_t) WaitExisting(key interface{}) (value interface{}, oki int) {
+func (self * WaitMap_t) WaitCreate(key interface{}) (value interface{}, oki int) {
 	self.mx.Lock()
-	value, oki = self.wm.WaitExisting(key)
+	value, oki = self.wm.WaitCreate(key)
 	self.mx.Unlock()
 	return
 }
@@ -128,7 +128,7 @@ func NewOpen(mx sync.Locker, limit int, ttl time.Duration) (self * WaitMapOpen_t
 func (self * WaitMapOpen_t) __evict(ts time.Time, it * cache.Value_t, keep int) bool {
 	if self.c.Size() > keep || ts.Sub(it.Value().(* Mapped_t).ts) > self.ttl {
 		it.Value().(* Mapped_t).q.Close()
-		self.c.Remove(it.Key())
+		// self.c.Remove(it.Key())
 		return true
 	}
 	return false
@@ -160,12 +160,13 @@ func (self * WaitMapOpen_t) flushing() {
 }
 
 func (self * WaitMapOpen_t) Create(key interface{}, queue_size int) (ok bool) {
-	_, ok = self.c.PushBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, queue_size), ts: time.Now()}})
+	_, ok = self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, queue_size), ts: time.Now()}})
+	self.__flush()
 	return
 }
 
-func (self * WaitMapOpen_t) WaitExisting(key interface{}) (value interface{}, oki int) {
-	it, ok := self.c.PushBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: time.Now()}})
+func (self * WaitMapOpen_t) WaitCreate(key interface{}) (value interface{}, oki int) {
+	it, ok := self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: time.Now()}})
 	self.__flush()
 	if !ok {
 		return nil, -1
@@ -237,7 +238,7 @@ func (* WaitMapClosed_t) Create(key interface{}, queue_size int) (ok bool) {
 	return
 }
 
-func (* WaitMapClosed_t) WaitExisting(key interface{}) (value interface{}, oki int) {
+func (* WaitMapClosed_t) WaitCreate(key interface{}) (value interface{}, oki int) {
 	return nil, -1
 }
 

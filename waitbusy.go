@@ -24,7 +24,7 @@ func NewBusy() (* WaitBusy_t) {
 	return &WaitBusy_t{dict: map[interface{}]*queue_t{}}
 }
 
-func (self *WaitBusy_t) WaitExisting(key interface{}) (value interface{}, oki int) {
+func (self *WaitBusy_t) WaitCreate(key interface{}) (value interface{}, oki int) {
 	self.mx.Lock()
 	defer self.mx.Unlock()
 	v, ok := self.dict[key];
@@ -85,7 +85,7 @@ func (self *WaitBusy_t) WaitTimeout(key interface{}, timeout time.Duration) (val
 	}
 }
 
-func (self *WaitBusy_t) WaitExistingTimeout(key interface{}, timeout time.Duration) (value interface{}, oki int) {
+func (self *WaitBusy_t) WaitCreateTimeout(key interface{}, timeout time.Duration) (value interface{}, oki int) {
 	self.mx.Lock()
 	defer self.mx.Unlock()
 	v, ok := self.dict[key]

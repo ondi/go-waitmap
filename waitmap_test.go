@@ -40,7 +40,7 @@ func TestWaitMap3(t * testing.T) {
 		t.Errorf("Signal: 0 != %v", oki)
 	}
 	
-	value, oki := m.WaitExisting("lalala")
+	value, oki := m.WaitCreate("lalala")
 	if oki != -1 {
 		t.Errorf("WaitCreate: -1 != %v, %v", oki, value)
 	}
