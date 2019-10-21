@@ -126,7 +126,7 @@ func NewOpen(mx sync.Locker, limit int, ttl time.Duration) (self * WaitMapOpen_t
 }
 
 func (self * WaitMapOpen_t) __evict_one(ts time.Time, it * cache.Value_t, keep int) bool {
-	if self.c.Size() > keep || ts.Sub(it.Value().(* Mapped_t).ts) > self.ttl {
+	if self.c.Size() > keep || ts.After(it.Value().(* Mapped_t).ts) {
 		it.Value().(* Mapped_t).q.Close()
 		self.c.Remove(it.Key())
 		return true
@@ -160,38 +160,32 @@ func (self * WaitMapOpen_t) evicting() {
 }
 
 func (self * WaitMapOpen_t) Create(ts time.Time, key interface{}, queue_size int) (ok bool) {
-	_, ok = self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, queue_size), ts: ts}})
+	_, ok = self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, queue_size), ts: ts.Add(self.ttl)}})
 	self.__evict(ts)
 	return
 }
 
 func (self * WaitMapOpen_t) WaitCreate(ts time.Time, key interface{}) (value interface{}, oki int) {
-	it, ok := self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: ts}})
+	it, ok := self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: ts.Add(self.ttl)}})
 	self.__evict(ts)
 	if !ok {
-		return nil, -1
+		return nil, -2
 	}
 	v := it.Value().(* Mapped_t)
-	if value, oki = v.q.PopFront(); oki == -1 {
-		return
-	}
-	if v.q.Readers() == 0 {
+	if value, oki = v.q.PopFront(); oki == 0 && v.q.Readers() == 0 {
 		self.c.Remove(key)
 	}
 	return
 }
 
 func (self * WaitMapOpen_t) Wait(ts time.Time, key interface{}) (value interface{}, oki int) {
-	it, ok := self.c.PushBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: ts}})
+	it, ok := self.c.PushBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: ts.Add(self.ttl)}})
 	self.__evict(ts)
 	v := it.Value().(* Mapped_t)
 	if !ok {
 		v.ts = ts
 	}
-	if value, oki = v.q.PopFront(); oki == -1 {
-		return
-	}
-	if v.q.Readers() == 0 {
+	if value, oki = v.q.PopFront(); oki == 0 && v.q.Readers() == 0 {
 		self.c.Remove(key)
 	}
 	return
@@ -218,8 +212,8 @@ func (self * WaitMapOpen_t) Remove(ts time.Time, key interface{}) (ok bool) {
 func (self * WaitMapOpen_t) Close() {
 	for it := self.c.Front(); it != self.c.End(); it = it.Next() {
 		it.Value().(* Mapped_t).q.Close()
-		self.c.Remove(it.Key())
 	}
+	self.c = cache.New()
 	atomic.StoreInt32(&self.running, 0)
 }
 
