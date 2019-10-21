@@ -128,7 +128,7 @@ func NewOpen(mx sync.Locker, limit int, ttl time.Duration) (self * WaitMapOpen_t
 func (self * WaitMapOpen_t) __evict(ts time.Time, it * cache.Value_t, keep int) bool {
 	if self.c.Size() > keep || ts.Sub(it.Value().(* Mapped_t).ts) > self.ttl {
 		it.Value().(* Mapped_t).q.Close()
-		// self.c.Remove(it.Key())
+		self.c.Remove(it.Key())
 		return true
 	}
 	return false
@@ -172,7 +172,9 @@ func (self * WaitMapOpen_t) WaitCreate(key interface{}) (value interface{}, oki 
 		return nil, -1
 	}
 	v := it.Value().(* Mapped_t)
-	value, oki = v.q.PopFront()
+	if value, oki = v.q.PopFront(); oki == -1 {
+		return
+	}
 	if v.q.Readers() == 0 {
 		self.c.Remove(key)
 	}
@@ -186,7 +188,9 @@ func (self * WaitMapOpen_t) Wait(key interface{}) (value interface{}, oki int) {
 	if !ok {
 		v.ts = time.Now()
 	}
-	value, oki = v.q.PopFront()
+	if value, oki = v.q.PopFront(); oki == -1 {
+		return
+	}
 	if v.q.Readers() == 0 {
 		self.c.Remove(key)
 	}
