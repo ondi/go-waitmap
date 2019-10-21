@@ -12,13 +12,13 @@ import "github.com/ondi/go-cache"
 import "github.com/ondi/go-queue"
 
 type WaitMap interface {
-	Create(key interface{}, queue_size int) (ok bool)
-	WaitCreate(key interface{}) (value interface{}, oki int)
-	Wait(key interface{}) (value interface{}, oki int)
-	Signal(key interface{}, value interface{}) int
-	Remove(key interface{}) (ok bool)
+	Create(ts time.Time, key interface{}, queue_size int) (ok bool)
+	WaitCreate(ts time.Time, key interface{}) (value interface{}, oki int)
+	Wait(ts time.Time, key interface{}) (value interface{}, oki int)
+	Signal(ts time.Time, key interface{}, value interface{}) int
+	Remove(ts time.Time, key interface{}) (ok bool)
 	Close()
-	Size() int
+	Size(ts time.Time) int
 	Limit() int
 	TTL() time.Duration
 }
@@ -34,37 +34,37 @@ func New(limit int, ttl time.Duration) (self * WaitMap_t) {
 	return
 }
 
-func (self * WaitMap_t) Create(key interface{}, queue_size int) (ok bool) {
+func (self * WaitMap_t) Create(ts time.Time, key interface{}, queue_size int) (ok bool) {
 	self.mx.Lock()
-	ok = self.wm.Create(key, queue_size)
+	ok = self.wm.Create(ts, key, queue_size)
 	self.mx.Unlock()
 	return
 }
 
-func (self * WaitMap_t) WaitCreate(key interface{}) (value interface{}, oki int) {
+func (self * WaitMap_t) WaitCreate(ts time.Time, key interface{}) (value interface{}, oki int) {
 	self.mx.Lock()
-	value, oki = self.wm.WaitCreate(key)
+	value, oki = self.wm.WaitCreate(ts, key)
 	self.mx.Unlock()
 	return
 }
 
-func (self * WaitMap_t) Wait(key interface{}) (value interface{}, oki int) {
+func (self * WaitMap_t) Wait(ts time.Time, key interface{}) (value interface{}, oki int) {
 	self.mx.Lock()
-	value, oki = self.wm.Wait(key)
+	value, oki = self.wm.Wait(ts, key)
 	self.mx.Unlock()
 	return
 }
 
-func (self * WaitMap_t) Signal(key interface{}, value interface{}) (oki int) {
+func (self * WaitMap_t) Signal(ts time.Time, key interface{}, value interface{}) (oki int) {
 	self.mx.Lock()
-	oki = self.wm.Signal(key, value)
+	oki = self.wm.Signal(ts, key, value)
 	self.mx.Unlock()
 	return
 }
 
-func (self * WaitMap_t) Remove(key interface{}) (ok bool) {
+func (self * WaitMap_t) Remove(ts time.Time, key interface{}) (ok bool) {
 	self.mx.Lock()
-	ok = self.wm.Remove(key)
+	ok = self.wm.Remove(ts, key)
 	self.mx.Unlock()
 	return
 }
@@ -76,9 +76,9 @@ func (self * WaitMap_t) Close() {
 	self.mx.Unlock()
 }
 
-func (self * WaitMap_t) Size() (size int) {
+func (self * WaitMap_t) Size(ts time.Time) (size int) {
 	self.mx.Lock()
-	size = self.wm.Size()
+	size = self.wm.Size(ts)
 	self.mx.Unlock()
 	return
 }
@@ -121,11 +121,11 @@ func NewOpen(mx sync.Locker, limit int, ttl time.Duration) (self * WaitMapOpen_t
 	self.ttl = ttl
 	self.limit = limit
 	self.running = 1
-	go self.flushing()
+	go self.evicting()
 	return
 }
 
-func (self * WaitMapOpen_t) __evict(ts time.Time, it * cache.Value_t, keep int) bool {
+func (self * WaitMapOpen_t) __evict_one(ts time.Time, it * cache.Value_t, keep int) bool {
 	if self.c.Size() > keep || ts.Sub(it.Value().(* Mapped_t).ts) > self.ttl {
 		it.Value().(* Mapped_t).q.Close()
 		self.c.Remove(it.Key())
@@ -134,40 +134,40 @@ func (self * WaitMapOpen_t) __evict(ts time.Time, it * cache.Value_t, keep int) 
 	return false
 }
 
-func (self * WaitMapOpen_t) __flush() {
-	ts := time.Now()
-	for it := self.c.Front(); it != self.c.End() && self.__evict(ts, it, self.limit); it = it.Next() {}
+func (self * WaitMapOpen_t) __evict(ts time.Time) {
+	for it := self.c.Front(); it != self.c.End() && self.__evict_one(ts, it, self.limit); it = it.Next() {}
 }
 
-func (self * WaitMapOpen_t) flush() (ts time.Time, ok bool) {
+func (self * WaitMapOpen_t) evict(ts time.Time) (least time.Time, ok bool) {
 	self.mx.Lock()
-	self.__flush()
+	self.__evict(ts)
 	if self.c.Size() > 0 {
-		ts, ok = self.c.Front().Value().(* Mapped_t).ts, true
+		least, ok = self.c.Front().Value().(* Mapped_t).ts, true
 	}
 	self.mx.Unlock()
 	return
 }
 
-func (self * WaitMapOpen_t) flushing() {
+func (self * WaitMapOpen_t) evicting() {
 	for atomic.LoadInt32(&self.running) > 0 {
-		if least, ok := self.flush(); ok && time.Now().Sub(least) < self.ttl {
-			time.Sleep(time.Now().Sub(least))
+		ts := time.Now()
+		if least, ok := self.evict(ts); ok && ts.Sub(least) < self.ttl {
+			time.Sleep(ts.Sub(least))
 		} else {
 			time.Sleep(self.ttl)
 		}
 	}
 }
 
-func (self * WaitMapOpen_t) Create(key interface{}, queue_size int) (ok bool) {
-	_, ok = self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, queue_size), ts: time.Now()}})
-	self.__flush()
+func (self * WaitMapOpen_t) Create(ts time.Time, key interface{}, queue_size int) (ok bool) {
+	_, ok = self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, queue_size), ts: ts}})
+	self.__evict(ts)
 	return
 }
 
-func (self * WaitMapOpen_t) WaitCreate(key interface{}) (value interface{}, oki int) {
-	it, ok := self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: time.Now()}})
-	self.__flush()
+func (self * WaitMapOpen_t) WaitCreate(ts time.Time, key interface{}) (value interface{}, oki int) {
+	it, ok := self.c.CreateBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: ts}})
+	self.__evict(ts)
 	if !ok {
 		return nil, -1
 	}
@@ -181,12 +181,12 @@ func (self * WaitMapOpen_t) WaitCreate(key interface{}) (value interface{}, oki 
 	return
 }
 
-func (self * WaitMapOpen_t) Wait(key interface{}) (value interface{}, oki int) {
-	it, ok := self.c.PushBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: time.Now()}})
-	self.__flush()
+func (self * WaitMapOpen_t) Wait(ts time.Time, key interface{}) (value interface{}, oki int) {
+	it, ok := self.c.PushBack(key, func() interface{} {return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: ts}})
+	self.__evict(ts)
 	v := it.Value().(* Mapped_t)
 	if !ok {
-		v.ts = time.Now()
+		v.ts = ts
 	}
 	if value, oki = v.q.PopFront(); oki == -1 {
 		return
@@ -197,8 +197,8 @@ func (self * WaitMapOpen_t) Wait(key interface{}) (value interface{}, oki int) {
 	return
 }
 
-func (self * WaitMapOpen_t) Signal(key interface{}, value interface{}) int {
-	self.__flush()
+func (self * WaitMapOpen_t) Signal(ts time.Time, key interface{}, value interface{}) int {
+	self.__evict(ts)
 	if it := self.c.Find(key); it != self.c.End() {
 		it.Value().(* Mapped_t).q.PushBack(value)
 		return 0
@@ -206,8 +206,8 @@ func (self * WaitMapOpen_t) Signal(key interface{}, value interface{}) int {
 	return -1
 }
 
-func (self * WaitMapOpen_t) Remove(key interface{}) (ok bool) {
-	self.__flush()
+func (self * WaitMapOpen_t) Remove(ts time.Time, key interface{}) (ok bool) {
+	self.__evict(ts)
 	var it * cache.Value_t
 	if it, ok = self.c.Remove(key); ok {
 		it.Value().(* Mapped_t).q.Close()
@@ -223,8 +223,8 @@ func (self * WaitMapOpen_t) Close() {
 	atomic.StoreInt32(&self.running, 0)
 }
 
-func (self * WaitMapOpen_t) Size() int {
-	self.__flush()
+func (self * WaitMapOpen_t) Size(ts time.Time) int {
+	self.__evict(ts)
 	return self.c.Size()
 }
 
@@ -238,23 +238,23 @@ func (self * WaitMapOpen_t) TTL() time.Duration {
 
 type WaitMapClosed_t struct {}
 
-func (* WaitMapClosed_t) Create(key interface{}, queue_size int) (ok bool) {
+func (* WaitMapClosed_t) Create(ts time.Time, key interface{}, queue_size int) (ok bool) {
 	return
 }
 
-func (* WaitMapClosed_t) WaitCreate(key interface{}) (value interface{}, oki int) {
+func (* WaitMapClosed_t) WaitCreate(ts time.Time, key interface{}) (value interface{}, oki int) {
 	return nil, -1
 }
 
-func (* WaitMapClosed_t) Wait(key interface{}) (value interface{}, oki int) {
+func (* WaitMapClosed_t) Wait(ts time.Time, key interface{}) (value interface{}, oki int) {
 	return nil, -1
 }
 
-func (* WaitMapClosed_t) Signal(key interface{}, value interface{}) int {
+func (* WaitMapClosed_t) Signal(ts time.Time, key interface{}, value interface{}) int {
 	return -1
 }
 
-func (* WaitMapClosed_t) Remove(key interface{}) (ok bool) {
+func (* WaitMapClosed_t) Remove(ts time.Time, key interface{}) (ok bool) {
 	return
 }
 
@@ -262,7 +262,7 @@ func (* WaitMapClosed_t) Close() {
 	return
 }
 
-func (* WaitMapClosed_t) Size() int {
+func (* WaitMapClosed_t) Size(ts time.Time) int {
 	return 0
 }
 
