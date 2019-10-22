@@ -138,11 +138,11 @@ func (self * WaitMapOpen_t) __evict(ts time.Time) {
 	for it := self.c.Front(); it != self.c.End() && self.__evict_one(ts, it, self.limit); it = it.Next() {}
 }
 
-func (self * WaitMapOpen_t) evict(ts time.Time) (diff time.Duration, ok bool) {
+func (self * WaitMapOpen_t) evict(ts time.Time) (diff time.Duration) {
 	self.mx.Lock()
 	self.__evict(ts)
 	if self.c.Size() > 0 {
-		diff, ok = self.c.Front().Value().(* Mapped_t).ts.Sub(ts), true
+		diff = self.c.Front().Value().(* Mapped_t).ts.Sub(ts)
 	}
 	self.mx.Unlock()
 	return
@@ -151,7 +151,7 @@ func (self * WaitMapOpen_t) evict(ts time.Time) (diff time.Duration, ok bool) {
 func (self * WaitMapOpen_t) evicting() {
 	for atomic.LoadInt32(&self.running) > 0 {
 		ts := time.Now()
-		if diff, ok := self.evict(ts); ok && diff > 0 {
+		if diff := self.evict(ts); diff > 0 {
 			time.Sleep(diff)
 		} else {
 			time.Sleep(self.ttl)
