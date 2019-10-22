@@ -12,7 +12,7 @@ func TestWaitMap1(t * testing.T) {
 	m := New(0, 1 * time.Second)
 	_, oki := m.Wait(time.Now(), "lalala")
 	if oki != -1 {
-		t.Errorf("WaitNewTimeout: -1 != %v", oki)
+		t.Errorf("Wait: -1 != %v", oki)
 	}
 }
 
