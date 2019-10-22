@@ -17,6 +17,7 @@ type WaitMap interface {
 	Wait(ts time.Time, key interface{}) (value interface{}, oki int)
 	Signal(ts time.Time, key interface{}, value interface{}) int
 	Remove(ts time.Time, key interface{}) (ok bool)
+	Range(f func(key interface{}, ts time.Time) bool)
 	Close()
 	Size(ts time.Time) int
 	Limit() int
@@ -67,6 +68,12 @@ func (self * WaitMap_t) Remove(ts time.Time, key interface{}) (ok bool) {
 	ok = self.wm.Remove(ts, key)
 	self.mx.Unlock()
 	return
+}
+
+func (self * WaitMap_t) Range(f func(key interface{}, ts time.Time) bool) {
+	self.mx.Lock()
+	self.wm.Range(f)
+	self.mx.Unlock()
 }
 
 func (self * WaitMap_t) Close() {
@@ -209,6 +216,14 @@ func (self * WaitMapOpen_t) Remove(ts time.Time, key interface{}) (ok bool) {
 	return
 }
 
+func (self * WaitMapOpen_t) Range(f func(key interface{}, ts time.Time) bool) {
+	for it := self.c.Front(); it != self.c.End(); it = it.Next() {
+		if f(it.Key(), it.Value().(* Mapped_t).ts) == false {
+			return
+		}
+	}
+}
+
 func (self * WaitMapOpen_t) Close() {
 	for it := self.c.Front(); it != self.c.End(); it = it.Next() {
 		it.Value().(* Mapped_t).q.Close()
@@ -231,39 +246,13 @@ func (self * WaitMapOpen_t) TTL() time.Duration {
 }
 
 type WaitMapClosed_t struct {}
-
-func (* WaitMapClosed_t) Create(ts time.Time, key interface{}, queue_size int) (ok bool) {
-	return
-}
-
-func (* WaitMapClosed_t) WaitCreate(ts time.Time, key interface{}) (value interface{}, oki int) {
-	return nil, -1
-}
-
-func (* WaitMapClosed_t) Wait(ts time.Time, key interface{}) (value interface{}, oki int) {
-	return nil, -1
-}
-
-func (* WaitMapClosed_t) Signal(ts time.Time, key interface{}, value interface{}) int {
-	return -1
-}
-
-func (* WaitMapClosed_t) Remove(ts time.Time, key interface{}) (ok bool) {
-	return
-}
-
-func (* WaitMapClosed_t) Close() {
-	return
-}
-
-func (* WaitMapClosed_t) Size(ts time.Time) int {
-	return 0
-}
-
-func (* WaitMapClosed_t) Limit() int {
-	return 0
-}
-
-func (* WaitMapClosed_t) TTL() time.Duration {
-	return 0
-}
+func (* WaitMapClosed_t) Create(ts time.Time, key interface{}, queue_size int) (ok bool) {return}
+func (* WaitMapClosed_t) WaitCreate(ts time.Time, key interface{}) (value interface{}, oki int) {return nil, -1}
+func (* WaitMapClosed_t) Wait(ts time.Time, key interface{}) (value interface{}, oki int) {return nil, -1}
+func (* WaitMapClosed_t) Signal(ts time.Time, key interface{}, value interface{}) int {return -1}
+func (* WaitMapClosed_t) Remove(ts time.Time, key interface{}) (ok bool) {return}
+func (* WaitMapClosed_t) Range(func(key interface{}, ts time.Time) bool) {}
+func (* WaitMapClosed_t) Close() {}
+func (* WaitMapClosed_t) Size(ts time.Time) int {return 0}
+func (* WaitMapClosed_t) Limit() int {return 0}
+func (* WaitMapClosed_t) TTL() time.Duration {return 0}
