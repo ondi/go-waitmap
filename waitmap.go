@@ -190,7 +190,7 @@ func (self * WaitMapOpen_t) Wait(ts time.Time, key interface{}) (value interface
 	self.__evict(ts)
 	v := it.Value().(* Mapped_t)
 	if !ok {
-		v.ts = ts
+		v.ts = ts.Add(self.ttl)
 	}
 	if value, oki = v.q.PopFront(); oki == 0 && v.q.Readers() == 0 {
 		self.c.Remove(key)
