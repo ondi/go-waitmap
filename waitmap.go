@@ -200,7 +200,7 @@ func (self * WaitMapOpen_t) Wait(ts time.Time, key interface{}) (value interface
 
 func (self * WaitMapOpen_t) Signal(ts time.Time, key interface{}, value interface{}) int {
 	self.__evict(ts)
-	if it := self.c.Find(key); it != self.c.End() {
+	if it, ok := self.c.Find(key); ok {
 		it.Value().(* Mapped_t).q.PushBack(value)
 		return 0
 	}
