@@ -195,13 +195,10 @@ func (self *WaitMapOpen_t) WaitCreate(ts time.Time, key interface{}) (value inte
 }
 
 func (self *WaitMapOpen_t) Wait(ts time.Time, key interface{}) (value interface{}, oki int) {
-	it, ok := self.c.WriteBack(
+	it, ok := self.c.PushBack(
 		key,
 		func() interface{} {
 			return &Mapped_t{q: queue.NewOpen(self.mx, 0), ts: ts.Add(self.ttl)}
-		},
-		func(prev interface{}) interface{} {
-			return prev
 		},
 	)
 	self.__evict(ts)
