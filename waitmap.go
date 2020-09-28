@@ -140,10 +140,10 @@ func NewOpen(mx sync.Locker, limit int, ttl time.Duration, evict Evict) (self *W
 }
 
 func (self *WaitMapOpen_t) __evict_one(ts time.Time, it *cache.Value_t, keep int) bool {
-	if self.c.Size() > keep || it.Value().(*Mapped_t).ts.Before(ts) {
-		it.Value().(*Mapped_t).q.Close()
-		self.c.Remove(it.Key())
-		self.evict(it.Key())
+	if self.c.Size() > keep || it.Value.(*Mapped_t).ts.Before(ts) {
+		it.Value.(*Mapped_t).q.Close()
+		self.c.Remove(it.Key)
+		self.evict(it.Key)
 		return true
 	}
 	return false
@@ -158,7 +158,7 @@ func (self *WaitMapOpen_t) evict_all(ts time.Time) (diff time.Duration) {
 	self.mx.Lock()
 	self.__evict(ts)
 	if self.c.Size() > 0 {
-		diff = self.c.Front().Value().(*Mapped_t).ts.Sub(ts)
+		diff = self.c.Front().Value.(*Mapped_t).ts.Sub(ts)
 	}
 	self.mx.Unlock()
 	return
@@ -187,7 +187,7 @@ func (self *WaitMapOpen_t) WaitCreate(ts time.Time, key interface{}) (value inte
 	if !ok {
 		return nil, -2
 	}
-	v := it.Value().(*Mapped_t)
+	v := it.Value.(*Mapped_t)
 	if value, oki = v.q.PopFront(); oki == 0 && v.q.Readers() == 0 {
 		self.c.Remove(key)
 	}
@@ -202,7 +202,7 @@ func (self *WaitMapOpen_t) Wait(ts time.Time, key interface{}) (value interface{
 		},
 	)
 	self.__evict(ts)
-	v := it.Value().(*Mapped_t)
+	v := it.Value.(*Mapped_t)
 	if !ok {
 		v.ts = ts.Add(self.ttl)
 	}
@@ -215,7 +215,7 @@ func (self *WaitMapOpen_t) Wait(ts time.Time, key interface{}) (value interface{
 func (self *WaitMapOpen_t) Signal(ts time.Time, key interface{}, value interface{}) int {
 	self.__evict(ts)
 	if it, ok := self.c.Find(key); ok {
-		it.Value().(*Mapped_t).q.PushBack(value)
+		it.Value.(*Mapped_t).q.PushBack(value)
 		return 0
 	}
 	return -1
@@ -225,14 +225,14 @@ func (self *WaitMapOpen_t) Remove(ts time.Time, key interface{}) (ok bool) {
 	self.__evict(ts)
 	var it *cache.Value_t
 	if it, ok = self.c.Remove(key); ok {
-		it.Value().(*Mapped_t).q.Close()
+		it.Value.(*Mapped_t).q.Close()
 	}
 	return
 }
 
 func (self *WaitMapOpen_t) Range(f func(key interface{}, ts time.Time) bool) {
 	for it := self.c.Front(); it != self.c.End(); it = it.Next() {
-		if f(it.Key(), it.Value().(*Mapped_t).ts) == false {
+		if f(it.Key, it.Value.(*Mapped_t).ts) == false {
 			return
 		}
 	}
@@ -240,7 +240,7 @@ func (self *WaitMapOpen_t) Range(f func(key interface{}, ts time.Time) bool) {
 
 func (self *WaitMapOpen_t) Close() {
 	for it := self.c.Front(); it != self.c.End(); it = it.Next() {
-		it.Value().(*Mapped_t).q.Close()
+		it.Value.(*Mapped_t).q.Close()
 	}
 	self.c = cache.New()
 	atomic.StoreInt32(&self.running, 0)
