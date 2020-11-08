@@ -44,10 +44,11 @@ func (self *WaitMap_t) __evict(key interface{}, value interface{}) {
 func (self *WaitMap_t) evicting(ttl time.Duration) {
 	for {
 		self.mx.Lock()
-		diff, ok := self.c.LeastDiff(time.Now())
+		now := time.Now()
+		ts, ok := self.c.LeastTs(now)
 		self.mx.Unlock()
 		if ok {
-			time.Sleep(diff)
+			time.Sleep(ts.Sub(now))
 		} else {
 			time.Sleep(ttl)
 		}
@@ -149,10 +150,10 @@ func (self *WaitMap_t) Remove(ts time.Time, key interface{}) (ok bool) {
 	return
 }
 
-func (self *WaitMap_t) Range(ts time.Time, f func(key interface{}, diff time.Duration) bool) {
+func (self *WaitMap_t) Range(ts time.Time, f func(key interface{}, ts time.Time) bool) {
 	self.mx.Lock()
-	self.c.RangeTs(ts, func(key interface{}, value interface{}, diff time.Duration) bool {
-		return f(key, diff)
+	self.c.RangeTs(ts, func(key interface{}, value interface{}, ts time.Time) bool {
+		return f(key, ts)
 	})
 	self.mx.Unlock()
 }
