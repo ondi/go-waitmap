@@ -84,6 +84,9 @@ func (self *WaitMap_t) Create(ts time.Time, key interface{}, queue_size int) (ok
 		func() interface{} {
 			return queue.NewOpen(&self.mx, queue_size)
 		},
+		func(p interface{}) interface{} {
+			return p
+		},
 	)
 	self.mx.Unlock()
 	return
@@ -96,6 +99,9 @@ func (self *WaitMap_t) WaitCreate(ts time.Time, key interface{}, queue_size int)
 		key,
 		func() interface{} {
 			return queue.NewOpen(&self.mx, queue_size)
+		},
+		func(p interface{}) interface{} {
+			return p
 		},
 	)
 	if !ok {
@@ -112,7 +118,7 @@ func (self *WaitMap_t) WaitCreate(ts time.Time, key interface{}, queue_size int)
 
 func (self *WaitMap_t) Wait(ts time.Time, key interface{}, queue_size int) (value interface{}, oki int) {
 	self.mx.Lock()
-	res, _ := self.c.Write(
+	res, _ := self.c.Push(
 		ts,
 		key,
 		func() interface{} {
