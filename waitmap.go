@@ -55,9 +55,9 @@ func (self *WaitMap_t) evicting(ttl time.Duration) {
 	}
 }
 
-func (self *WaitMap_t) Size() (size int) {
+func (self *WaitMap_t) Size(ts time.Time) (size int) {
 	self.mx.Lock()
-	size = self.c.Size()
+	size = self.c.Size(ts)
 	self.mx.Unlock()
 	return
 }
