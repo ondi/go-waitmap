@@ -3,11 +3,11 @@ module github.com/ondi/go-waitmap
 go 1.17
 
 require (
-	github.com/ondi/go-queue v0.0.0-20210726162458-ac52b650e8c3
-	github.com/ondi/go-ttl-cache v0.0.0-20210726160039-e1687346aff5
+	github.com/ondi/go-queue v0.0.0-20210820212020-bdc17d37111b
+	github.com/ondi/go-ttl-cache v0.0.0-20211111080155-62a4e2b8e005
 )
 
 require (
-	github.com/ondi/go-cache v0.0.0-20210726155604-9f65175da6da // indirect
-	github.com/ondi/go-circular v0.0.0-20210726154101-9fad127ee38f // indirect
+	github.com/ondi/go-cache v0.0.0-20211111075227-baee44a21c32 // indirect
+	github.com/ondi/go-circular v0.0.0-20210820211818-b5fe0a3a1f71 // indirect
 )
