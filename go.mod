@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/ondi/go-queue v0.0.0-20210820212020-bdc17d37111b
-	github.com/ondi/go-ttl-cache v0.0.0-20211111080155-62a4e2b8e005
+	github.com/ondi/go-ttl-cache v0.0.0-20211130153810-20d080ad9758
 )
 
 require (
