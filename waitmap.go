@@ -24,10 +24,10 @@ type WaitMap_t struct {
 
 func New(limit int, ttl time.Duration, evict Evict) (self *WaitMap_t) {
 	self = &WaitMap_t{}
-	if ttl <= 0 {
+	if ttl < 0 {
 		ttl = time.Duration(1<<63 - 1)
 	}
-	if limit <= 0 {
+	if limit < 0 {
 		limit = 1<<63 - 1
 	}
 	self.c = ttl_cache.New(limit, ttl, self.__evict)
@@ -92,7 +92,7 @@ func (self *WaitMap_t) Create(ts time.Time, key interface{}, queue_size int) (ok
 	return
 }
 
-func (self *WaitMap_t) WaitCreate(ts time.Time, key interface{}, queue_size int) (value interface{}, oki int) {
+func (self *WaitMap_t) CreateWait(ts time.Time, key interface{}, queue_size int) (value interface{}, oki int) {
 	self.mx.Lock()
 	res, ok := self.c.Create(
 		ts,
@@ -116,7 +116,7 @@ func (self *WaitMap_t) WaitCreate(ts time.Time, key interface{}, queue_size int)
 	return
 }
 
-func (self *WaitMap_t) Wait(ts time.Time, key interface{}, queue_size int) (value interface{}, oki int) {
+func (self *WaitMap_t) PushWait(ts time.Time, key interface{}, queue_size int) (value interface{}, oki int) {
 	self.mx.Lock()
 	res, _ := self.c.Push(
 		ts,
