@@ -12,13 +12,13 @@ import (
 	ttl_cache "github.com/ondi/go-ttl-cache"
 )
 
-type Evict func(key interface{})
+type Evict func(key string)
 
-func Drop(key interface{}) {}
+func Drop(key string) {}
 
 type WaitMap_t struct {
 	mx    sync.Mutex
-	c     *ttl_cache.Cache_t
+	c     *ttl_cache.Cache_t[string, queue.Queue]
 	evict Evict
 }
 
@@ -36,7 +36,7 @@ func New(limit int, ttl time.Duration, evict Evict) (self *WaitMap_t) {
 	return
 }
 
-func (self *WaitMap_t) __evict(key interface{}, value interface{}) {
+func (self *WaitMap_t) __evict(key string, value queue.Queue) {
 	value.(queue.Queue).Close()
 	self.evict(key)
 }
@@ -76,33 +76,29 @@ func (self *WaitMap_t) TTL() (ttl time.Duration) {
 	return
 }
 
-func (self *WaitMap_t) Create(ts time.Time, key interface{}, queue_size int) (ok bool) {
+func (self *WaitMap_t) Create(ts time.Time, key string, queue_size int) (ok bool) {
 	self.mx.Lock()
 	_, ok = self.c.Create(
 		ts,
 		key,
-		func() interface{} {
+		func() queue.Queue {
 			return queue.NewOpen(&self.mx, queue_size)
 		},
-		func(p interface{}) interface{} {
-			return p
-		},
+		func(p *queue.Queue) {},
 	)
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t) CreateWait(ts time.Time, key interface{}, queue_size int) (value interface{}, oki int) {
+func (self *WaitMap_t) CreateWait(ts time.Time, key string, queue_size int) (value interface{}, oki int) {
 	self.mx.Lock()
 	res, ok := self.c.Create(
 		ts,
 		key,
-		func() interface{} {
+		func() queue.Queue {
 			return queue.NewOpen(&self.mx, queue_size)
 		},
-		func(p interface{}) interface{} {
-			return p
-		},
+		func(p *queue.Queue) {},
 	)
 	if !ok {
 		self.mx.Unlock()
@@ -116,17 +112,15 @@ func (self *WaitMap_t) CreateWait(ts time.Time, key interface{}, queue_size int)
 	return
 }
 
-func (self *WaitMap_t) PushWait(ts time.Time, key interface{}, queue_size int) (value interface{}, oki int) {
+func (self *WaitMap_t) PushWait(ts time.Time, key string, queue_size int) (value interface{}, oki int) {
 	self.mx.Lock()
 	res, _ := self.c.Push(
 		ts,
 		key,
-		func() interface{} {
+		func() queue.Queue {
 			return queue.NewOpen(&self.mx, queue_size)
 		},
-		func(prev interface{}) interface{} {
-			return prev
-		},
+		func(p *queue.Queue) {},
 	)
 	v := res.(queue.Queue)
 	if value, oki = v.PopFront(); oki == 0 && v.Readers() == 0 {
@@ -136,7 +130,7 @@ func (self *WaitMap_t) PushWait(ts time.Time, key interface{}, queue_size int) (
 	return
 }
 
-func (self *WaitMap_t) Signal(ts time.Time, key interface{}, value interface{}) (ok bool) {
+func (self *WaitMap_t) Signal(ts time.Time, key string, value interface{}) (ok bool) {
 	self.mx.Lock()
 	var res interface{}
 	if res, ok = self.c.Get(ts, key); ok {
@@ -146,7 +140,7 @@ func (self *WaitMap_t) Signal(ts time.Time, key interface{}, value interface{}) 
 	return
 }
 
-func (self *WaitMap_t) Remove(ts time.Time, key interface{}) (ok bool) {
+func (self *WaitMap_t) Remove(ts time.Time, key string) (ok bool) {
 	self.mx.Lock()
 	var res interface{}
 	if res, ok = self.c.Remove(ts, key); ok {
@@ -156,9 +150,9 @@ func (self *WaitMap_t) Remove(ts time.Time, key interface{}) (ok bool) {
 	return
 }
 
-func (self *WaitMap_t) Range(ts time.Time, f func(key interface{}, ts time.Time) bool) {
+func (self *WaitMap_t) Range(ts time.Time, f func(key string, ts time.Time) bool) {
 	self.mx.Lock()
-	self.c.RangeTs(ts, func(key interface{}, value interface{}, ts time.Time) bool {
+	self.c.RangeTs(ts, func(key string, value queue.Queue, ts time.Time) bool {
 		return f(key, ts)
 	})
 	self.mx.Unlock()
