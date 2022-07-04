@@ -16,14 +16,14 @@ type Evict func(key string)
 
 func Drop(key string) {}
 
-type WaitMap_t struct {
+type WaitMap_t[Value_t any] struct {
 	mx    sync.Mutex
-	c     *ttl_cache.Cache_t[string, queue.Queue]
+	c     *ttl_cache.Cache_t[string, queue.Queue[Value_t]]
 	evict Evict
 }
 
-func New(limit int, ttl time.Duration, evict Evict) (self *WaitMap_t) {
-	self = &WaitMap_t{}
+func New[Value_t any](limit int, ttl time.Duration, evict Evict) (self *WaitMap_t[Value_t]) {
+	self = &WaitMap_t[Value_t]{}
 	if ttl < 0 {
 		ttl = time.Duration(1<<63 - 1)
 	}
@@ -36,12 +36,12 @@ func New(limit int, ttl time.Duration, evict Evict) (self *WaitMap_t) {
 	return
 }
 
-func (self *WaitMap_t) __evict(key string, value queue.Queue) {
-	value.(queue.Queue).Close()
+func (self *WaitMap_t[Value_t]) __evict(key string, value queue.Queue[Value_t]) {
+	value.Close()
 	self.evict(key)
 }
 
-func (self *WaitMap_t) evicting(ttl time.Duration) {
+func (self *WaitMap_t[Value_t]) evicting(ttl time.Duration) {
 	for {
 		self.mx.Lock()
 		now := time.Now()
@@ -55,110 +55,109 @@ func (self *WaitMap_t) evicting(ttl time.Duration) {
 	}
 }
 
-func (self *WaitMap_t) Size(ts time.Time) (size int) {
+func (self *WaitMap_t[Value_t]) Size(ts time.Time) (size int) {
 	self.mx.Lock()
 	size = self.c.Size(ts)
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t) Limit() (limit int) {
+func (self *WaitMap_t[Value_t]) Limit() (limit int) {
 	self.mx.Lock()
 	limit = self.c.Limit()
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t) TTL() (ttl time.Duration) {
+func (self *WaitMap_t[Value_t]) TTL() (ttl time.Duration) {
 	self.mx.Lock()
 	ttl = self.c.TTL()
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t) Create(ts time.Time, key string, queue_size int) (ok bool) {
+func (self *WaitMap_t[Value_t]) Create(ts time.Time, key string, queue_size int) (ok bool) {
 	self.mx.Lock()
 	_, ok = self.c.Create(
 		ts,
 		key,
-		func() queue.Queue {
-			return queue.NewOpen(&self.mx, queue_size)
+		func() queue.Queue[Value_t] {
+			return queue.NewOpen[Value_t](&self.mx, queue_size)
 		},
-		func(p *queue.Queue) {},
+		func(p *queue.Queue[Value_t]) {},
 	)
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t) CreateWait(ts time.Time, key string, queue_size int) (value interface{}, oki int) {
+func (self *WaitMap_t[Value_t]) CreateWait(ts time.Time, key string, queue_size int) (value Value_t, oki int) {
 	self.mx.Lock()
 	res, ok := self.c.Create(
 		ts,
 		key,
-		func() queue.Queue {
-			return queue.NewOpen(&self.mx, queue_size)
+		func() queue.Queue[Value_t] {
+			return queue.NewOpen[Value_t](&self.mx, queue_size)
 		},
-		func(p *queue.Queue) {},
+		func(p *queue.Queue[Value_t]) {},
 	)
 	if !ok {
 		self.mx.Unlock()
-		return nil, -2
+		oki = -2
+		return
 	}
-	v := res.(queue.Queue)
-	if value, oki = v.PopFront(); oki == 0 && v.Readers() == 0 {
+	if value, oki = res.PopFront(); oki == 0 && res.Readers() == 0 {
 		self.c.Remove(ts, key)
 	}
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t) PushWait(ts time.Time, key string, queue_size int) (value interface{}, oki int) {
+func (self *WaitMap_t[Value_t]) PushWait(ts time.Time, key string, queue_size int) (value Value_t, oki int) {
 	self.mx.Lock()
 	res, _ := self.c.Push(
 		ts,
 		key,
-		func() queue.Queue {
-			return queue.NewOpen(&self.mx, queue_size)
+		func() queue.Queue[Value_t] {
+			return queue.NewOpen[Value_t](&self.mx, queue_size)
 		},
-		func(p *queue.Queue) {},
+		func(p *queue.Queue[Value_t]) {},
 	)
-	v := res.(queue.Queue)
-	if value, oki = v.PopFront(); oki == 0 && v.Readers() == 0 {
+	if value, oki = res.PopFront(); oki == 0 && res.Readers() == 0 {
 		self.c.Remove(ts, key)
 	}
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t) Signal(ts time.Time, key string, value interface{}) (ok bool) {
+func (self *WaitMap_t[Value_t]) Signal(ts time.Time, key string, value Value_t) (ok bool) {
 	self.mx.Lock()
-	var res interface{}
-	if res, ok = self.c.Get(ts, key); ok {
-		res.(queue.Queue).PushBackNoWait(value)
+	res, ok := self.c.Get(ts, key)
+	if ok {
+		res.PushBackNoWait(value)
 	}
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t) Remove(ts time.Time, key string) (ok bool) {
+func (self *WaitMap_t[Value_t]) Remove(ts time.Time, key string) (ok bool) {
 	self.mx.Lock()
-	var res interface{}
-	if res, ok = self.c.Remove(ts, key); ok {
-		res.(queue.Queue).Close()
+	res, ok := self.c.Remove(ts, key)
+	if ok {
+		res.Close()
 	}
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t) Range(ts time.Time, f func(key string, ts time.Time) bool) {
+func (self *WaitMap_t[Value_t]) Range(ts time.Time, f func(key string, ts time.Time) bool) {
 	self.mx.Lock()
-	self.c.RangeTs(ts, func(key string, value queue.Queue, ts time.Time) bool {
+	self.c.RangeTs(ts, func(key string, value queue.Queue[Value_t], ts time.Time) bool {
 		return f(key, ts)
 	})
 	self.mx.Unlock()
 }
 
-func (self *WaitMap_t) Flush(ts time.Time) {
+func (self *WaitMap_t[Value_t]) Flush(ts time.Time) {
 	self.mx.Lock()
 	self.c.FlushLimit(ts, 0)
 	self.mx.Unlock()

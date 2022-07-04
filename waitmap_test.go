@@ -5,44 +5,37 @@
 package waitmap
 
 import (
+	"fmt"
 	"testing"
 	"time"
+
+	"gotest.tools/assert"
 )
 
 func TestWaitMap1(t *testing.T) {
-	m := New(1, 1*time.Second, Drop)
+	m := New[string](1, 1*time.Second, Drop)
 	_, oki := m.PushWait(time.Now(), "lalala", 0)
-	if oki != -1 {
-		t.Errorf("Wait: -1 != %v", oki)
-	}
+	assert.Assert(t, oki == -1, fmt.Sprintf("Wait: -1 != %v", oki))
 }
 
 func TestWaitMap2(t *testing.T) {
-	m := New(1, 1*time.Second, Drop)
+	m := New[string](1, 1*time.Second, Drop)
 
 	m.Create(time.Now(), "lalala", 1)
 	ok := m.Signal(time.Now(), "lalala", "bububu")
-	if !ok {
-		t.Errorf("Signal: true != %v", ok)
-	}
+	assert.Assert(t, ok, fmt.Sprintf("Signal: true != %v", ok))
 
 	value, oki := m.PushWait(time.Now(), "lalala", 0)
-	if oki != 0 {
-		t.Errorf("Wait: 0 != %v, %v", oki, value)
-	}
+	assert.Assert(t, oki == 0, fmt.Sprintf("Wait: 0 != %v, %v", oki, value))
 }
 
 func TestWaitMap3(t *testing.T) {
-	m := New(1, 1*time.Second, Drop)
+	m := New[string](1, 1*time.Second, Drop)
 
 	m.Create(time.Now(), "lalala", 1)
 	ok := m.Signal(time.Now(), "lalala", "bububu")
-	if !ok {
-		t.Errorf("Signal: true != %v", ok)
-	}
+	assert.Assert(t, ok, fmt.Sprintf("Signal: true != %v", ok))
 
 	value, oki := m.CreateWait(time.Now(), "lalala", 0)
-	if oki != -2 {
-		t.Errorf("WaitCreate: -2 != %v, %v", oki, value)
-	}
+	assert.Assert(t, oki == -2, fmt.Errorf("WaitCreate: -2 != %v, %v", oki, value))
 }
