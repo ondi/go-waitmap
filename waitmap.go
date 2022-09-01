@@ -109,10 +109,11 @@ func (self *WaitMap_t[Value_t]) Signal(ts time.Time, key string, value Value_t) 
 	return
 }
 
-func (self *WaitMap_t[Value_t]) Remove(ts time.Time, key string) (ok bool) {
+func (self *WaitMap_t[Value_t]) Remove(ts time.Time, key string, check_readers bool) (ok bool) {
 	self.mx.Lock()
-	res, ok := self.c.Remove(ts, key)
-	if ok {
+	res, ok := self.c.Find(ts, key)
+	if ok && (check_readers == false || res.Readers() == 0) {
+		self.c.Remove(ts, key)
 		res.Close()
 	}
 	self.mx.Unlock()
