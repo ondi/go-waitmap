@@ -109,6 +109,19 @@ func (self *WaitMap_t[Value_t]) Signal(ts time.Time, key string, value Value_t) 
 	return
 }
 
+func (self *WaitMap_t[Value_t]) Broadcast(ts time.Time, key string, value Value_t) (ok bool) {
+	self.mx.Lock()
+	res, ok := self.c.Find(ts, key)
+	if ok {
+		res.PushBackNoWait(value)
+		for i := 1; i < res.Readers(); i++ {
+			res.PushBackNoWait(value)
+		}
+	}
+	self.mx.Unlock()
+	return
+}
+
 func (self *WaitMap_t[Value_t]) Remove(ts time.Time, key string, check_readers bool) (ok bool) {
 	self.mx.Lock()
 	res, ok := self.c.Find(ts, key)
