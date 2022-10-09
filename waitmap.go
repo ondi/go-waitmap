@@ -67,7 +67,7 @@ func (self *WaitMap_t[Value_t]) CreateWait(ts time.Time, key string, queue_size 
 	return
 }
 
-func (self *WaitMap_t[Value_t]) Push(ts time.Time, key string, queue_size int, remove bool) (ok bool) {
+func (self *WaitMap_t[Value_t]) Push(ts time.Time, key string, queue_size int) (ok bool) {
 	self.mx.Lock()
 	_, ok = self.c.Push(
 		ts,
