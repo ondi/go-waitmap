@@ -67,17 +67,16 @@ func (self *WaitMap_t[Value_t]) CreateWait(ts time.Time, key string, queue_size 
 	return
 }
 
-func (self *WaitMap_t[Value_t]) FindWait(ts time.Time, key string, remove bool) (value Value_t, oki int) {
+func (self *WaitMap_t[Value_t]) Push(ts time.Time, key string, queue_size int, remove bool) (ok bool) {
 	self.mx.Lock()
-	res, ok := self.c.Find(ts, key)
-	if !ok {
-		self.mx.Unlock()
-		oki = -3
-		return
-	}
-	if value, oki = res.PopFront(); remove && oki == 0 && res.Readers() == 0 {
-		self.c.Remove(ts, key)
-	}
+	_, ok = self.c.Push(
+		ts,
+		key,
+		func() queue.Queue[Value_t] {
+			return queue.NewOpen[Value_t](&self.mx, queue_size)
+		},
+		func(p *queue.Queue[Value_t]) {},
+	)
 	self.mx.Unlock()
 	return
 }
@@ -92,6 +91,21 @@ func (self *WaitMap_t[Value_t]) PushWait(ts time.Time, key string, queue_size in
 		},
 		func(p *queue.Queue[Value_t]) {},
 	)
+	if value, oki = res.PopFront(); remove && oki == 0 && res.Readers() == 0 {
+		self.c.Remove(ts, key)
+	}
+	self.mx.Unlock()
+	return
+}
+
+func (self *WaitMap_t[Value_t]) FindWait(ts time.Time, key string, remove bool) (value Value_t, oki int) {
+	self.mx.Lock()
+	res, ok := self.c.Find(ts, key)
+	if !ok {
+		self.mx.Unlock()
+		oki = -3
+		return
+	}
 	if value, oki = res.PopFront(); remove && oki == 0 && res.Readers() == 0 {
 		self.c.Remove(ts, key)
 	}
