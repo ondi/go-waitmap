@@ -41,8 +41,8 @@ func (self *WaitMap_t[Value_t]) Create(ts time.Time, key string, queue_size int)
 	_, ok = self.c.Create(
 		ts,
 		key,
-		func() queue.Queue[Value_t] {
-			return queue.NewOpen[Value_t](&self.mx, queue_size)
+		func(p *queue.Queue[Value_t]) {
+			*p = queue.NewOpen[Value_t](&self.mx, queue_size)
 		},
 		func(p *queue.Queue[Value_t]) {},
 	)
@@ -55,8 +55,8 @@ func (self *WaitMap_t[Value_t]) CreateWait(ts time.Time, key string, queue_size 
 	res, _ := self.c.Create(
 		ts,
 		key,
-		func() queue.Queue[Value_t] {
-			return queue.NewOpen[Value_t](&self.mx, queue_size)
+		func(p *queue.Queue[Value_t]) {
+			*p = queue.NewOpen[Value_t](&self.mx, queue_size)
 		},
 		func(p *queue.Queue[Value_t]) {},
 	)
@@ -72,8 +72,8 @@ func (self *WaitMap_t[Value_t]) Push(ts time.Time, key string, queue_size int) (
 	_, ok = self.c.Push(
 		ts,
 		key,
-		func() queue.Queue[Value_t] {
-			return queue.NewOpen[Value_t](&self.mx, queue_size)
+		func(p *queue.Queue[Value_t]) {
+			*p = queue.NewOpen[Value_t](&self.mx, queue_size)
 		},
 		func(p *queue.Queue[Value_t]) {},
 	)
@@ -86,8 +86,8 @@ func (self *WaitMap_t[Value_t]) PushWait(ts time.Time, key string, queue_size in
 	res, _ := self.c.Push(
 		ts,
 		key,
-		func() queue.Queue[Value_t] {
-			return queue.NewOpen[Value_t](&self.mx, queue_size)
+		func(p *queue.Queue[Value_t]) {
+			*p = queue.NewOpen[Value_t](&self.mx, queue_size)
 		},
 		func(p *queue.Queue[Value_t]) {},
 	)
