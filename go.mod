@@ -1,16 +1,16 @@
 module github.com/ondi/go-waitmap
 
-go 1.18
+go 1.20
 
 require (
 	github.com/ondi/go-queue v0.0.0-20220705093149-83582bcfd7bb
-	github.com/ondi/go-ttl-cache v0.0.0-20230322105344-5671c29ac9ab
+	github.com/ondi/go-ttl-cache v0.0.0-20230323113240-70092451936c
 	gotest.tools v2.2.0+incompatible
 )
 
 require (
 	github.com/google/go-cmp v0.5.6 // indirect
-	github.com/ondi/go-cache v0.0.0-20230322100319-5f3878d58ef3 // indirect
+	github.com/ondi/go-cache v0.0.0-20230323112532-7ecd710c8376 // indirect
 	github.com/ondi/go-circular v0.0.0-20220704164630-c29e6fae4bc2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 )
