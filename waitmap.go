@@ -50,7 +50,7 @@ func (self *WaitMap_t[Value_t]) Create(ts time.Time, key string, queue_size int)
 	return
 }
 
-func (self *WaitMap_t[Value_t]) CreateWait(ts time.Time, key string, queue_size int, remove bool) (value Value_t, oki int) {
+func (self *WaitMap_t[Value_t]) CreateWait(ts time.Time, key string, queue_size int, remove bool) (value Value_t, ok bool) {
 	self.mx.Lock()
 	it, _ := self.c.Create(
 		ts,
@@ -60,7 +60,7 @@ func (self *WaitMap_t[Value_t]) CreateWait(ts time.Time, key string, queue_size 
 		},
 		func(p *queue.Queue[Value_t]) {},
 	)
-	if value, oki = it.Value.Value.PopFront(); remove && oki == 0 && it.Value.Value.Readers() == 0 {
+	if value, ok = it.Value.Value.PopFront(); remove && ok && it.Value.Value.Readers() == 0 {
 		self.c.Remove(ts, key)
 	}
 	self.mx.Unlock()
@@ -81,7 +81,7 @@ func (self *WaitMap_t[Value_t]) Push(ts time.Time, key string, queue_size int) (
 	return
 }
 
-func (self *WaitMap_t[Value_t]) PushWait(ts time.Time, key string, queue_size int, remove bool) (value Value_t, oki int) {
+func (self *WaitMap_t[Value_t]) PushWait(ts time.Time, key string, queue_size int, remove bool) (value Value_t, ok bool) {
 	self.mx.Lock()
 	it, _ := self.c.Push(
 		ts,
@@ -91,22 +91,21 @@ func (self *WaitMap_t[Value_t]) PushWait(ts time.Time, key string, queue_size in
 		},
 		func(p *queue.Queue[Value_t]) {},
 	)
-	if value, oki = it.Value.Value.PopFront(); remove && oki == 0 && it.Value.Value.Readers() == 0 {
+	if value, ok = it.Value.Value.PopFront(); remove && ok && it.Value.Value.Readers() == 0 {
 		self.c.Remove(ts, key)
 	}
 	self.mx.Unlock()
 	return
 }
 
-func (self *WaitMap_t[Value_t]) FindWait(ts time.Time, key string, remove bool) (value Value_t, oki int) {
+func (self *WaitMap_t[Value_t]) FindWait(ts time.Time, key string, remove bool) (value Value_t, ok bool) {
 	self.mx.Lock()
 	it, ok := self.c.Find(ts, key)
 	if !ok {
 		self.mx.Unlock()
-		oki = -3
 		return
 	}
-	if value, oki = it.Value.Value.PopFront(); remove && oki == 0 && it.Value.Value.Readers() == 0 {
+	if value, ok = it.Value.Value.PopFront(); remove && ok && it.Value.Value.Readers() == 0 {
 		self.c.Remove(ts, key)
 	}
 	self.mx.Unlock()
@@ -117,7 +116,7 @@ func (self *WaitMap_t[Value_t]) Signal(ts time.Time, key string, value Value_t) 
 	self.mx.Lock()
 	it, ok := self.c.Find(ts, key)
 	if ok {
-		it.Value.Value.PushBackNoWait(value)
+		it.Value.Value.PushBackNoLock(value)
 	}
 	self.mx.Unlock()
 	return
@@ -127,9 +126,9 @@ func (self *WaitMap_t[Value_t]) Broadcast(ts time.Time, key string, value Value_
 	self.mx.Lock()
 	it, ok := self.c.Find(ts, key)
 	if ok {
-		it.Value.Value.PushBackNoWait(value)
+		it.Value.Value.PushBackNoLock(value)
 		for i := 1; i < it.Value.Value.Readers(); i++ {
-			it.Value.Value.PushBackNoWait(value)
+			it.Value.Value.PushBackNoLock(value)
 		}
 	}
 	self.mx.Unlock()
