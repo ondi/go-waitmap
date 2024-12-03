@@ -3,8 +3,8 @@ module github.com/ondi/go-waitmap
 go 1.21
 
 require (
-	github.com/ondi/go-queue v0.0.0-20231117093047-e8284ff6074e
-	github.com/ondi/go-ttl-cache v0.0.0-20240712152728-7c56c46a473d
+	github.com/ondi/go-queue v0.0.0-20241202144359-797dec4cff85
+	github.com/ondi/go-ttl-cache v0.0.0-20241202144501-b775d98c614f
 	gotest.tools v2.2.0+incompatible
 )
 
